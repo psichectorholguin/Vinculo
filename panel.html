@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PsicoHoy — Panel del psicólogo (conectado)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#F7F7F5; --surface:#FFFFFF; --ink:#12181A; --ink-soft:#535F5F; --ink-faint:#8B9795;
+    --accent:#2F6B5E; --accent-2:#D98E3B; --danger:#A24435; --line:#DDE2E0; --sidebar:#0F1413;
+    color-scheme: light;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){ --bg:#0F1413; --surface:#161D1B; --ink:#EDF3F1; --ink-soft:#9FB0AC; --ink-faint:#5F706C; --line:#26302D; --sidebar:#0A0D0C; }
+  }
+  :root[data-theme="dark"]{ --bg:#0F1413; --surface:#161D1B; --ink:#EDF3F1; --ink-soft:#9FB0AC; --ink-faint:#5F706C; --line:#26302D; --sidebar:#0A0D0C; }
+  html{ scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:'IBM Plex Sans', system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
+  h1,h2,h3{ font-family:'Space Grotesk', sans-serif; font-weight:600; margin:0; }
+  button{ font-family:inherit; cursor:pointer; }
+  .mono{ font-family:'IBM Plex Mono', monospace; }
+
+  .shell{ display:grid; grid-template-columns:230px 1fr; min-height:100vh; }
+
+  /* SIDEBAR */
+  .sidebar{ background:var(--sidebar); color:#DCE6E2; padding:22px 16px; padding-top:calc(22px + env(safe-area-inset-top,0px)); display:flex; flex-direction:column; }
+  .sb-logo{ font-family:'Space Grotesk',sans-serif; font-size:1.05rem; padding:6px 10px 22px; color:#fff; }
+  .sb-logo span{ color:var(--accent-2); }
+  .sb-nav{ display:flex; flex-direction:column; gap:2px; }
+  .sb-item{ display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:6px; color:#AAB8B4; font-size:0.9rem; background:none; border:none; text-align:left; width:100%; }
+  .sb-item .ic{ width:18px; text-align:center; opacity:0.85; font-size:0.95rem; }
+  .sb-item:hover{ background:rgba(255,255,255,0.05); color:#fff; }
+  .sb-item.active{ background:var(--accent); color:#fff; }
+  .sb-sep{ height:1px; background:rgba(255,255,255,0.08); margin:14px 4px; }
+  .sb-foot{ margin-top:auto; padding:12px 10px; font-size:0.78rem; color:#7C8B87; }
+  .sb-foot .badge{ display:inline-block; background:rgba(217,142,63,0.16); color:var(--accent-2); padding:3px 8px; border-radius:10px; font-size:0.72rem; margin-bottom:6px; }
+
+  /* MAIN */
+  .main{ padding:calc(26px + env(safe-area-inset-top,0px)) 40px 60px; max-width:980px; }
+  .topbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .crumb{ font-size:0.82rem; color:var(--ink-faint); }
+  .crumb b{ color:var(--ink-soft); font-weight:500; }
+  .whoami{ display:flex; align-items:center; gap:10px; }
+  .avatar-sm{ width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#C98A63,#7A4B3A); }
+  .whoami .n{ font-size:0.85rem; }
+  .whoami .r{ font-size:0.72rem; color:var(--ink-faint); }
+
+  .view{ display:none; }
+  .view.active{ display:block; }
+  .page-title{ font-size:1.5rem; margin:18px 0 26px; }
+
+  /* DASHBOARD */
+  .stat-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:36px; }
+  .stat{ background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:18px; }
+  .stat .v{ font-family:'Space Grotesk',sans-serif; font-size:1.7rem; }
+  .stat .l{ font-size:0.78rem; color:var(--ink-faint); margin-top:4px; }
+  .panel{ background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:22px; margin-bottom:20px; }
+  .panel h3{ font-size:1rem; margin-bottom:14px; }
+  .row-line{ display:flex; justify-content:space-between; padding:10px 0; border-top:1px solid var(--line); font-size:0.88rem; }
+  .row-line:first-of-type{ border-top:none; }
+  .pill{ font-size:0.72rem; padding:3px 10px; border-radius:20px; }
+  .pill.confirmed{ background:rgba(47,107,94,0.12); color:var(--accent); }
+  .pill.pending{ background:rgba(217,142,63,0.14); color:var(--accent-2); }
+  .pill.completed{ background:var(--line); color:var(--ink-soft); }
+
+  /* AGENDA */
+  .week{ display:grid; grid-template-columns:64px repeat(5,1fr); gap:6px; }
+  .week .h{ font-size:0.76rem; color:var(--ink-faint); text-align:center; padding-bottom:6px; }
+  .week .time{ font-size:0.76rem; color:var(--ink-faint); padding:10px 0; }
+  .cell{ height:46px; border-radius:4px; background:var(--bg); border:1px solid var(--line); font-size:0.7rem; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--ink-faint); }
+  .cell.on{ background:rgba(47,107,94,0.14); border-color:var(--accent); color:var(--accent); }
+  .cell.pend{ background:rgba(217,142,63,0.14); border-color:var(--accent-2); color:var(--accent-2); }
+
+  /* PATIENT LIST */
+  table{ width:100%; border-collapse:collapse; background:var(--surface); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  thead th{ text-align:left; font-size:0.76rem; color:var(--ink-faint); font-weight:500; padding:14px 18px; border-bottom:1px solid var(--line); }
+  tbody td{ padding:14px 18px; font-size:0.9rem; border-bottom:1px solid var(--line); }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody tr{ cursor:pointer; }
+  tbody tr:hover{ background:var(--bg); }
+  .pname{ display:flex; align-items:center; gap:10px; }
+  .mono-avatar{ width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.7rem; color:#fff; font-family:'Space Grotesk',sans-serif; }
+
+  /* FICHA */
+  .back-link{ background:none; border:none; color:var(--ink-faint); font-size:0.85rem; padding:0; margin-bottom:18px; }
+  .ficha-privacy{ display:flex; align-items:center; gap:9px; background:rgba(47,107,94,0.08); border:1px solid rgba(47,107,94,0.25); color:var(--accent); padding:10px 16px; border-radius:6px; font-size:0.82rem; margin-bottom:22px; }
+  .ficha-head{ display:flex; align-items:center; gap:16px; margin-bottom:8px; }
+  .ficha-head .mono-avatar{ width:54px; height:54px; font-size:1.1rem; }
+  .ficha-head h2{ font-size:1.35rem; }
+  .ficha-head .status{ font-size:0.76rem; color:var(--accent); background:rgba(47,107,94,0.12); padding:2px 10px; border-radius:20px; margin-left:4px; }
+  .ficha-meta{ color:var(--ink-faint); font-size:0.82rem; margin:6px 0 24px 70px; }
+
+  .tabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:24px; }
+  .tab-btn{ background:none; border:none; padding:10px 4px; margin-right:22px; font-size:0.9rem; color:var(--ink-faint); border-bottom:2px solid transparent; }
+  .tab-btn.active{ color:var(--ink); border-bottom-color:var(--accent); }
+  .tab-pane{ display:none; }
+  .tab-pane.active{ display:block; }
+
+  .info-grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px 40px; }
+  .info-item .l{ font-size:0.76rem; color:var(--ink-faint); }
+  .info-item .v{ font-size:0.92rem; margin-top:3px; }
+
+  .note-card{ background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:18px 20px; margin-bottom:14px; }
+  .note-card .date{ font-size:0.78rem; color:var(--ink-faint); }
+  .note-card .motivo{ font-size:0.95rem; margin-top:4px; }
+  .note-card .toggle{ background:none; border:none; color:var(--accent); font-size:0.8rem; padding:0; margin-top:10px; }
+  .note-detail{ display:none; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); font-size:0.86rem; color:var(--ink-soft); line-height:1.6; }
+  .note-detail.open{ display:block; }
+  .note-detail b{ color:var(--ink); }
+
+  .btn{ display:inline-flex; align-items:center; gap:8px; background:var(--accent); color:#fff; border:none; padding:10px 18px; border-radius:5px; font-size:0.86rem; }
+  .btn.ghost{ background:none; border:1px solid var(--line); color:var(--ink); }
+
+  .note-form{ display:none; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:24px; margin-bottom:22px; }
+  .note-form.open{ display:block; }
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-size:0.78rem; color:var(--ink-faint); margin-bottom:6px; }
+  .field textarea, .field input{ width:100%; border:1px solid var(--line); border-radius:5px; padding:10px 12px; font-family:inherit; font-size:0.88rem; background:var(--bg); color:var(--ink); resize:vertical; }
+  .field textarea{ min-height:64px; }
+  .save-row{ display:flex; align-items:center; gap:14px; }
+  .saved-msg{ font-size:0.8rem; color:var(--accent); display:none; }
+  .saved-msg.show{ display:inline; }
+
+  .doc-row{ display:flex; justify-content:space-between; align-items:center; padding:14px 18px; background:var(--surface); border:1px solid var(--line); border-radius:8px; margin-bottom:10px; font-size:0.88rem; }
+  .doc-row .meta{ color:var(--ink-faint); font-size:0.78rem; margin-top:2px; }
+  .doc-link-status{ font-size:0.76rem; color:var(--accent-2); margin-left:10px; }
+
+  .audit-note{ margin-top:34px; font-size:0.78rem; color:var(--ink-faint); border-top:1px solid var(--line); padding-top:16px; display:flex; align-items:center; gap:8px; }
+
+  @media (max-width:880px){
+    .shell{ grid-template-columns:1fr; }
+    .sidebar{ display:none; }
+    .main{ padding:24px 20px 50px; }
+    .stat-row{ grid-template-columns:1fr 1fr; }
+    .info-grid{ grid-template-columns:1fr; }
+    .week{ font-size:0.7rem; }
+  }
+
+  /* SOLICITUDES + NOTIFICACIONES */
+  .badge-count{ background:var(--accent-2); color:#1A1408; font-size:0.68rem; padding:1px 7px; border-radius:10px; margin-left:auto; }
+  .request-card{ background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:18px 20px; margin-bottom:12px; }
+  .request-card .top-row{ display:flex; justify-content:space-between; align-items:center; }
+  .request-card .who{ font-size:0.95rem; }
+  .request-card .when{ color:var(--ink-faint); font-size:0.82rem; margin-top:3px; }
+  .request-actions{ display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .btn.danger{ background:var(--danger); }
+  .btn.sm{ padding:7px 14px; font-size:0.8rem; }
+  .chat-bubble{ background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px 14px; font-size:0.8rem; line-height:1.55; white-space:pre-line; margin-top:10px; max-width:360px; display:none; }
+  .chat-bubble.open{ display:block; }
+  .notif-row{ display:grid; grid-template-columns:78px 76px 90px 1fr; gap:10px; font-size:0.8rem; padding:12px 0; border-top:1px solid var(--line); align-items:center; }
+  .notif-row:first-of-type{ border-top:none; }
+  .notif-channel{ font-size:0.72rem; padding:2px 9px; border-radius:10px; background:var(--line); width:fit-content; }
+  .notif-toggle{ background:none; border:none; color:var(--accent); font-size:0.78rem; padding:0; text-align:left; }
+
+  /* PUBLIC BOOKING SCREEN */
+  .link-btn{ background:none; border:1px solid var(--line); color:var(--ink-soft); padding:8px 14px; border-radius:5px; font-size:0.8rem; }
+  .public-screen{ position:fixed; inset:0; background:var(--bg); z-index:50; overflow-y:auto; display:none; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
+  .public-screen.active{ display:block; }
+  .public-wrap{ max-width:520px; margin:0 auto; padding:32px 24px 80px; }
+  .public-brand{ font-family:'Space Grotesk',sans-serif; font-size:1.1rem; margin-bottom:6px; }
+  .public-brand span{ color:var(--accent-2); }
+  .public-sub{ color:var(--ink-faint); font-size:0.85rem; margin-bottom:26px; }
+  .step-track{ display:flex; gap:6px; margin-bottom:28px; }
+  .step-dot{ flex:1; height:4px; border-radius:2px; background:var(--line); }
+  .step-dot.done{ background:var(--accent); }
+  .step-title{ font-size:1.2rem; margin-bottom:18px; }
+  .option-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px; }
+  .option-card{ border:1px solid var(--line); border-radius:8px; padding:16px; background:var(--surface); cursor:pointer; font-size:0.92rem; text-align:left; }
+  .option-card.sel{ border-color:var(--accent); background:rgba(47,107,94,0.07); color:var(--accent); }
+  .date-row{ display:flex; gap:8px; overflow-x:auto; margin-bottom:8px; padding-bottom:4px; }
+  .date-chip{ flex:0 0 auto; border:1px solid var(--line); border-radius:8px; padding:10px 16px; font-size:0.82rem; background:var(--surface); cursor:pointer; }
+  .date-chip.sel{ border-color:var(--accent); background:rgba(47,107,94,0.07); color:var(--accent); }
+  .slot-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:8px; }
+  .slot-btn{ border:1px solid var(--line); border-radius:8px; padding:12px; background:var(--surface); font-size:0.88rem; cursor:pointer; }
+  .slot-btn.sel{ border-color:var(--accent); background:rgba(47,107,94,0.07); color:var(--accent); }
+  .slot-btn.taken{ opacity:0.4; text-decoration:line-through; cursor:not-allowed; background:var(--bg); }
+  .step-nav{ display:flex; justify-content:space-between; margin-top:20px; }
+  .confirm-screen{ text-align:center; padding:50px 0 20px; }
+  .confirm-icon{ font-size:2.2rem; margin-bottom:14px; }
+  .demo-note{ background:rgba(217,142,63,0.1); border:1px solid rgba(217,142,63,0.3); color:var(--accent-2); padding:10px 14px; border-radius:6px; font-size:0.78rem; margin-bottom:20px; }
+</style>
+<style>
+  /* Extras para el modo conectado */
+  .setup-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .setup-card{ max-width:460px; width:100%; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:32px; }
+  .setup-card h2{ font-size:1.3rem; margin-bottom:8px; }
+  .setup-card p{ color:var(--ink-faint); font-size:0.86rem; line-height:1.5; margin-bottom:20px; }
+  .setup-err{ color:var(--danger); font-size:0.82rem; margin-top:10px; display:none; }
+  .setup-err.show{ display:block; }
+  .toast{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:12px 20px; border-radius:6px; font-size:0.85rem; z-index:100; display:none; }
+  .toast.show{ display:block; }
+  .spinner{ font-size:0.82rem; color:var(--ink-faint); }
+  .logout-link{ background:none; border:none; color:var(--ink-faint); font-size:0.76rem; text-decoration:underline; padding:0; margin-top:14px; }
+  .empty-state{ color:var(--ink-faint); font-size:0.88rem; padding:16px 0; }
+  .doc-upload-row{ display:flex; gap:10px; align-items:center; margin-bottom:16px; }
+
+  /* HORARIOS */
+  .sched-row{ display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--surface); border:1px solid var(--line); border-radius:8px; margin-bottom:8px; font-size:0.88rem; }
+  .sched-row .del{ background:none; border:none; color:var(--danger); font-size:0.78rem; }
+  .add-sched-form{ display:grid; grid-template-columns:1.2fr 1fr 1fr auto; gap:10px; align-items:end; margin-top:18px; }
+  .add-sched-form select{ width:100%; border:1px solid var(--line); border-radius:5px; padding:10px 12px; font-family:inherit; font-size:0.86rem; background:var(--bg); color:var(--ink); }
+
+  /* CONFIGURACIÓN / SUSCRIPCIÓN */
+  .usage-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:24px; }
+  .toggle-row{ display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-top:1px solid var(--line); font-size:0.88rem; }
+  .toggle-row:first-of-type{ border-top:none; }
+  .plan-card{ background:linear-gradient(135deg, rgba(47,107,94,0.1), rgba(217,142,63,0.07)); border:1px solid var(--accent); border-radius:8px; padding:24px; margin-bottom:20px; }
+  .plan-card .tag{ font-size:0.76rem; color:var(--accent); font-weight:600; letter-spacing:0.03em; text-transform:uppercase; }
+  .plan-card h3{ font-size:1.3rem; margin:6px 0 10px; }
+
+  /* TAREAS */
+  .task-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:14px 16px; background:var(--surface); border:1px solid var(--line); border-radius:8px; margin-bottom:8px; }
+  .task-row .t-title{ font-size:0.9rem; }
+  .task-row .t-title.done{ text-decoration:line-through; color:var(--ink-faint); }
+  .task-row .t-desc{ font-size:0.8rem; color:var(--ink-faint); margin-top:3px; }
+  .task-row .t-due{ font-size:0.76rem; color:var(--accent-2); margin-top:5px; }
+  .task-row .t-actions{ display:flex; gap:6px; flex-shrink:0; }
+
+  /* REACTIVOS */
+  .test-search-row{ display:flex; gap:10px; margin-bottom:6px; }
+  .test-suggest{ border:1px solid var(--line); border-radius:8px; background:var(--surface); max-height:220px; overflow-y:auto; margin-bottom:16px; display:none; }
+  .test-suggest.show{ display:block; }
+  .test-suggest .opt{ padding:10px 14px; font-size:0.85rem; border-bottom:1px solid var(--line); }
+  .test-suggest .opt:last-child{ border-bottom:none; }
+  .test-suggest .opt:hover{ background:var(--bg); }
+  .test-suggest .opt .cat{ color:var(--ink-faint); font-size:0.74rem; }
+  .test-row{ background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin-bottom:8px; }
+  .test-row .tt{ font-size:0.9rem; }
+  .test-row .td{ font-size:0.78rem; color:var(--ink-faint); margin-top:3px; }
+
+  /* PROGRESO */
+  .progress-stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
+  .bar-wrap{ background:var(--bg); border:1px solid var(--line); border-radius:6px; height:10px; overflow:hidden; margin-top:6px; }
+  .bar-fill{ height:100%; background:var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- PANTALLA DE CONEXIÓN -->
+<div class="setup-screen" id="setup-screen">
+  <div class="setup-card">
+    <h2>Conectar con tu backend</h2>
+    <p>Pega la URL de tu API ya desplegada y el token de acceso que te dio <span class="mono">scripts/seed.js</span>. Se guardan en este navegador para la próxima vez.</p>
+    <div class="field"><label>URL de la API</label><input type="text" id="setup-api" placeholder="https://tu-api.onrender.com"></div>
+    <div class="field"><label>Token de la psicóloga</label><input type="text" id="setup-token" placeholder="eyJhbGciOi..."></div>
+    <button class="btn" onclick="connect()">Conectar</button>
+    <div class="setup-err" id="setup-err">No se pudo conectar. Revisa la URL y el token.</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="shell" id="shell" style="display:none;">
+  <aside class="sidebar">
+    <div class="sb-logo">Psico<span>Hoy</span></div>
+    <nav class="sb-nav">
+      <button class="sb-item active" data-view="dashboard"><span class="ic">▦</span>Dashboard</button>
+      <button class="sb-item" data-view="pacientes"><span class="ic">◒</span>Pacientes</button>
+      <button class="sb-item" data-view="solicitudes"><span class="ic">◔</span>Solicitudes<span class="badge-count" id="req-badge">0</span></button>
+      <button class="sb-item" data-view="horarios"><span class="ic">◷</span>Horarios</button>
+      <div class="sb-sep"></div>
+      <button class="sb-item" data-view="configuracion"><span class="ic">⚙</span>Configuración</button>
+      <button class="sb-item" data-view="suscripcion"><span class="ic">★</span>Suscripción</button>
+      <div class="sb-sep"></div>
+    </nav>
+    <div class="sb-foot">
+      <button class="logout-link" onclick="disconnect()">Cambiar de cuenta / salir</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="crumb" id="crumb">Panel <b>· Dashboard</b></div>
+      <div class="whoami">
+        <button class="link-btn" onclick="openPublicScreen()">🔗 Abrir mi link público de reserva</button>
+        <div class="n-block"><div class="n" id="who-name">—</div><div class="r">Psicóloga clínica</div></div>
+        <div class="avatar-sm"></div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <section class="view active" id="view-dashboard">
+      <h1 class="page-title">Hola</h1>
+      <div class="stat-row">
+        <div class="stat"><div class="v" id="stat-today">—</div><div class="l">Citas de hoy</div></div>
+        <div class="stat"><div class="v" id="stat-pending">—</div><div class="l">Solicitudes pendientes</div></div>
+        <div class="stat"><div class="v" id="stat-patients">—</div><div class="l">Pacientes vinculados</div></div>
+        <div class="stat"><div class="v">✓</div><div class="l">Conectado a tu API</div></div>
+      </div>
+      <div class="panel">
+        <h3>Próximas citas confirmadas</h3>
+        <div id="upcoming-list"><div class="spinner">Cargando…</div></div>
+      </div>
+    </section>
+
+    <!-- PACIENTES -->
+    <section class="view" id="view-pacientes">
+      <h1 class="page-title">Pacientes</h1>
+      <table>
+        <thead><tr><th>Paciente</th><th>Vínculo desde</th><th>Estado</th></tr></thead>
+        <tbody id="patient-rows"><tr><td colspan="3" class="empty-state">Cargando…</td></tr></tbody>
+      </table>
+    </section>
+
+    <!-- SOLICITUDES -->
+    <section class="view" id="view-solicitudes">
+      <h1 class="page-title">Solicitudes de cita</h1>
+      <p style="color:var(--ink-faint); font-size:0.88rem; margin-bottom:20px; margin-top:-14px;">Llegan cuando alguien reserva desde tu link público.</p>
+      <div id="requests-list"><div class="spinner">Cargando…</div></div>
+
+      <div class="panel" style="margin-top:8px;">
+        <h3>Historial de notificaciones enviadas</h3>
+        <p style="color:var(--ink-faint); font-size:0.82rem; margin-top:-8px; margin-bottom:14px;">En producción esto lo dispara el cron automáticamente — aquí solo ves el registro real.</p>
+        <div id="notif-list"><div class="spinner">Cargando…</div></div>
+      </div>
+    </section>
+
+    <!-- HORARIOS -->
+    <section class="view" id="view-horarios">
+      <h1 class="page-title">Horarios</h1>
+      <p style="color:var(--ink-faint); font-size:0.88rem; margin-top:-18px; margin-bottom:24px;">Estos bloques son los que tus pacientes ven disponibles en tu link público de reserva.</p>
+      <div class="panel">
+        <h3>Tu horario semanal</h3>
+        <div id="sched-list"><div class="spinner">Cargando…</div></div>
+        <div class="add-sched-form">
+          <div class="field" style="margin-bottom:0;"><label>Día</label>
+            <select id="sch-day"><option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miércoles</option><option value="4">Jueves</option><option value="5">Viernes</option><option value="6">Sábado</option><option value="0">Domingo</option></select>
+          </div>
+          <div class="field" style="margin-bottom:0;"><label>Desde</label><input type="time" id="sch-start" value="09:00"></div>
+          <div class="field" style="margin-bottom:0;"><label>Hasta</label><input type="time" id="sch-end" value="13:00"></div>
+          <button class="btn" onclick="addAvailability()">+ Agregar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONFIGURACIÓN -->
+    <section class="view" id="view-configuracion">
+      <h1 class="page-title">Configuración</h1>
+      <div class="panel">
+        <h3>Tu perfil</h3>
+        <div class="field"><label>Nombre</label><input type="text" id="cfg-name"></div>
+        <div class="field"><label>Teléfono (WhatsApp, formato +593...)</label><input type="text" id="cfg-phone"></div>
+        <div class="field"><label>Zona horaria</label><input type="text" id="cfg-timezone"></div>
+        <div class="field"><label>Duración de cada sesión (minutos)</label><input type="number" id="cfg-slot" min="15" max="240" step="5"></div>
+        <div class="toggle-row"><span>Avisarme por WhatsApp</span><input type="checkbox" id="cfg-notif-wa"></div>
+        <div class="toggle-row"><span>Avisarme por email</span><input type="checkbox" id="cfg-notif-email"></div>
+        <div class="toggle-row"><span>Recordatorio 24h antes al paciente</span><input type="checkbox" id="cfg-rem24"></div>
+        <div class="toggle-row"><span>Recordatorio 1h antes al paciente</span><input type="checkbox" id="cfg-rem1"></div>
+        <div class="save-row" style="margin-top:18px;">
+          <button class="btn" onclick="saveProfile()">Guardar cambios</button>
+          <span class="saved-msg" id="cfg-saved-msg">✓ Guardado</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Uso de tu cuenta</h3>
+        <div class="usage-grid" id="cfg-usage"><div class="spinner">Cargando…</div></div>
+      </div>
+    </section>
+
+    <!-- SUSCRIPCIÓN -->
+    <section class="view" id="view-suscripcion">
+      <h1 class="page-title">Suscripción</h1>
+      <div class="plan-card">
+        <div class="tag">Plan actual</div>
+        <h3>Beta cerrada — gratuita</h3>
+        <p style="font-size:0.88rem; color:var(--ink-soft); line-height:1.6;">Estás probando PsicoHoy en la fase de beta cerrada. No hay cobro todavía. Cuando se habilite el plan pagado, te avisaremos con anticipación y verás las opciones aquí mismo.</p>
+      </div>
+      <div class="panel">
+        <h3>Uso general de la plataforma</h3>
+        <div class="usage-grid" id="sub-usage"><div class="spinner">Cargando…</div></div>
+      </div>
+    </section>
+
+    <!-- FICHA -->
+    <section class="view" id="view-ficha">
+      <button class="back-link" onclick="goTo('pacientes')">← Volver a pacientes</button>
+      <div class="ficha-privacy">🔒 Expediente privado — cifrado en el servidor, solo visible para ti como psicóloga a cargo de este paciente</div>
+      <div class="ficha-head">
+        <div class="mono-avatar" id="ficha-avatar"></div>
+        <div><h2 id="ficha-name"></h2></div>
+      </div>
+      <div class="ficha-meta" id="ficha-meta"></div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="notas">Historia clínica</button>
+        <button class="tab-btn" data-tab="tareas">Tareas</button>
+        <button class="tab-btn" data-tab="reactivos">Reactivos</button>
+        <button class="tab-btn" data-tab="docs">Documentos</button>
+        <button class="tab-btn" data-tab="progreso">Progreso</button>
+        <button class="tab-btn" data-tab="citas">Citas</button>
+      </div>
+
+      <div class="tab-pane active" id="tab-notas">
+        <button class="btn" onclick="toggleNoteForm()">+ Nueva nota de sesión (formato SOAP)</button>
+        <div class="note-form" id="note-form">
+          <div class="field"><label>Fecha de la sesión</label><input type="datetime-local" id="nf-date"></div>
+          <div class="field"><label>Motivo / Subjetivo — lo que reporta el paciente</label><input type="text" id="nf-motivo" placeholder="Ej. seguimiento, crisis, primera consulta…"></div>
+          <div class="field"><label>Observaciones / Objetivo — lo que observas tú</label><textarea id="nf-obs"></textarea></div>
+          <div class="field"><label>Intervención / Análisis — qué hiciste y por qué</label><textarea id="nf-interv"></textarea></div>
+          <div class="field"><label>Evolución — cómo va el proceso</label><textarea id="nf-evol"></textarea></div>
+          <div class="field"><label>Próximos pasos / Plan</label><textarea id="nf-next"></textarea></div>
+          <div class="save-row">
+            <button class="btn" onclick="saveNote()">Guardar nota (cifrada)</button>
+            <button class="btn ghost" onclick="toggleNoteForm()">Cancelar</button>
+            <span class="saved-msg" id="saved-msg">✓ Guardada</span>
+          </div>
+        </div>
+        <div id="notes-list"></div>
+      </div>
+
+      <div class="tab-pane" id="tab-tareas">
+        <button class="btn" onclick="toggleTaskForm()">+ Asignar tarea</button>
+        <div class="note-form" id="task-form">
+          <div class="field"><label>Título</label><input type="text" id="tf-title" placeholder="Ej. Completar registro de pensamientos"></div>
+          <div class="field"><label>Descripción (opcional)</label><textarea id="tf-desc"></textarea></div>
+          <div class="field"><label>Fecha límite (opcional)</label><input type="date" id="tf-due"></div>
+          <div class="save-row">
+            <button class="btn" onclick="saveTask()">Asignar tarea</button>
+            <button class="btn ghost" onclick="toggleTaskForm()">Cancelar</button>
+          </div>
+        </div>
+        <p class="empty-state" style="padding:0 0 14px;">El paciente se entera por WhatsApp/email — aquí marcas manualmente cuando te confirme que la hizo.</p>
+        <div id="tasks-list"></div>
+      </div>
+
+      <div class="tab-pane" id="tab-reactivos">
+        <button class="btn" onclick="toggleTestForm()">+ Registrar reactivo aplicado</button>
+        <div class="note-form" id="test-form">
+          <div class="field">
+            <label>Buscar reactivo</label>
+            <input type="text" id="tst-search" placeholder="Escribe para buscar (ej. 'beck', 'wisc'…)" oninput="searchTests(this.value)">
+            <div class="test-suggest" id="tst-suggest"></div>
+          </div>
+          <div class="field"><label>Reactivo seleccionado</label><input type="text" id="tst-name" placeholder="O escribe uno nuevo a mano"></div>
+          <div class="field"><label>Fecha de aplicación</label><input type="datetime-local" id="tst-date"></div>
+          <div class="field"><label>Notas / resultado (cifrado)</label><textarea id="tst-notas"></textarea></div>
+          <div class="save-row">
+            <button class="btn" onclick="saveTest()">Guardar</button>
+            <button class="btn ghost" onclick="toggleTestForm()">Cancelar</button>
+          </div>
+        </div>
+        <div id="tests-list"></div>
+      </div>
+
+      <div class="tab-pane" id="tab-docs">
+        <div class="doc-upload-row">
+          <input type="file" id="doc-file" accept=".pdf,.png,.jpg,.jpeg">
+          <button class="btn sm" onclick="uploadDocument()">Subir documento</button>
+        </div>
+        <div id="docs-list"></div>
+      </div>
+
+      <div class="tab-pane" id="tab-progreso">
+        <div class="progress-stats" id="progress-stats"><div class="spinner">Calculando…</div></div>
+        <div class="panel">
+          <h3>Exportar</h3>
+          <p style="color:var(--ink-faint); font-size:0.82rem; margin-top:-6px; margin-bottom:14px;">Descarga la historia clínica completa de este paciente (notas, reactivos aplicados) como PDF.</p>
+          <button class="btn ghost" onclick="exportHistoriaPdf()">⬇ Exportar historia a PDF</button>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="tab-citas">
+        <div id="citas-list"></div>
+      </div>
+
+      <div class="audit-note">🕘 Cada vez que abres esta ficha o una nota queda un registro de auditoría real en el servidor.</div>
+    </section>
+  </main>
+</div>
+
+<div class="public-screen" id="public-screen">
+  <div class="public-wrap">
+    <button class="back-link" onclick="closePublicScreen()">← Volver al panel</button>
+    <div class="public-brand">Psico<span>Hoy</span></div>
+    <div class="public-sub" id="public-sub">Cargando tu link público…</div>
+    <div id="public-content"></div>
+  </div>
+</div>
+
+<script>
+/* ============ CONEXIÓN ============ */
+let API_BASE = '';
+let TOKEN = '';
+let ME = null;
+
+function loadSaved(){
+  try {
+    API_BASE = localStorage.getItem('psicohoy_api') || '';
+    TOKEN = localStorage.getItem('psicohoy_token') || '';
+  } catch(e) { /* localStorage no disponible: se pedirá de nuevo */ }
+}
+function saveConn(){
+  try {
+    localStorage.setItem('psicohoy_api', API_BASE);
+    localStorage.setItem('psicohoy_token', TOKEN);
+  } catch(e) {}
+}
+function disconnect(){
+  try { localStorage.removeItem('psicohoy_api'); localStorage.removeItem('psicohoy_token'); } catch(e){}
+  location.reload();
+}
+
+async function api(path, options={}){
+  const res = await fetch(API_BASE + path, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN, ...(options.headers||{}) },
+  });
+  if (!res.ok) {
+    let body = {};
+    try { body = await res.json(); } catch(e){}
+    const err = new Error(body.error || ('HTTP ' + res.status));
+    err.status = res.status; err.body = body;
+    throw err;
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function connect(){
+  const apiInput = document.getElementById('setup-api').value.trim().replace(/\/$/, '');
+  const tokenInput = document.getElementById('setup-token').value.trim();
+  const errBox = document.getElementById('setup-err');
+  errBox.classList.remove('show');
+  if (!apiInput || !tokenInput) { errBox.textContent = 'Completa ambos campos.'; errBox.classList.add('show'); return; }
+  API_BASE = apiInput; TOKEN = tokenInput;
+  try {
+    ME = await api('/me');
+  } catch(e) {
+    errBox.textContent = 'No se pudo conectar: ' + e.message;
+    errBox.classList.add('show');
+    return;
+  }
+  saveConn();
+  boot();
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=> t.classList.remove('show'), 2600);
+}
+
+async function boot(){
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('shell').style.display = 'grid';
+  document.getElementById('who-name').textContent = ME.name;
+  document.querySelector('.page-title').textContent = 'Hola, ' + ME.name.split(' ')[0];
+  await Promise.all([loadDashboard(), loadPatients()]);
+}
+
+/* ============ DASHBOARD ============ */
+async function loadDashboard(){
+  const [appointments, relationships] = await Promise.all([
+    api('/appointments?status=CONFIRMED'),
+    api('/relationships'),
+  ]);
+  const today = new Date().toDateString();
+  const todays = appointments.filter(a => new Date(a.startsAt).toDateString() === today);
+  document.getElementById('stat-today').textContent = todays.length;
+  document.getElementById('stat-patients').textContent = relationships.filter(r=>r.status==='ACTIVE').length;
+
+  const pending = await api('/appointments?status=REQUESTED');
+  document.getElementById('stat-pending').textContent = pending.length;
+  updateReqBadge(pending.length);
+
+  const upcoming = appointments
+    .filter(a => new Date(a.startsAt) > new Date())
+    .sort((a,b)=> new Date(a.startsAt) - new Date(b.startsAt))
+    .slice(0, 6);
+  document.getElementById('upcoming-list').innerHTML = upcoming.map(a => (
+    '<div class="row-line"><span>' + (a.patient?.name||'Paciente') + ' — ' + fmtDateTime(a.startsAt) + ' · ' + a.modality + '</span><span class="pill confirmed">Confirmada</span></div>'
+  )).join('') || '<p class="empty-state">No tienes citas confirmadas próximamente.</p>';
+}
+
+function fmtDateTime(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-EC', {day:'numeric', month:'short'}) + ' · ' + d.toLocaleTimeString('es-EC', {hour:'2-digit', minute:'2-digit'});
+}
+function fmtDate(iso){
+  return new Date(iso).toLocaleDateString('es-EC', {day:'numeric', month:'long', year:'numeric'});
+}
+function updateReqBadge(n){ document.getElementById('req-badge').textContent = n; }
+
+/* ============ PACIENTES ============ */
+async function loadPatients(){
+  const rels = await api('/relationships');
+  document.getElementById('patient-rows').innerHTML = rels.map(r => (
+    '<tr onclick="openFicha(\''+r.patientId+'\', \''+(r.patient?.name||'').replace(/'/g,"")+'\')">' +
+      '<td><div class="pname"><div class="mono-avatar" style="background:#2F6B5E">' + initials(r.patient?.name) + '</div>' + (r.patient?.name||'—') + '</div></td>' +
+      '<td>' + fmtDate(r.startedAt) + '</td>' +
+      '<td><span class="pill ' + (r.status==='ACTIVE'?'confirmed':'completed') + '">' + r.status + '</span></td>' +
+    '</tr>'
+  )).join('') || '<tr><td colspan="3" class="empty-state">Todavía no tienes pacientes vinculados — se crean solos al confirmar una primera cita.</td></tr>';
+}
+function initials(name){
+  if(!name) return '?';
+  return name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+}
+
+/* ============ SOLICITUDES ============ */
+async function renderSolicitudes(){
+  document.getElementById('requests-list').innerHTML = '<div class="spinner">Cargando…</div>';
+  const pending = await api('/appointments?status=REQUESTED');
+  document.getElementById('requests-list').innerHTML = pending.map(a => (
+    '<div class="request-card">' +
+      '<div class="top-row"><div><div class="who">' + (a.patient?.name||'Paciente') + '</div><div class="when">' + fmtDateTime(a.startsAt) + ' · ' + a.type + ' · ' + a.modality + '</div></div><span class="pill pending">Por validar</span></div>' +
+      '<div class="request-actions">' +
+        '<button class="btn sm" onclick="confirmAppt(\''+a.id+'\')">Confirmar cita</button>' +
+        '<button class="btn ghost sm" onclick="rejectAppt(\''+a.id+'\')">Rechazar</button>' +
+      '</div>' +
+    '</div>'
+  )).join('') || '<p class="empty-state">No tienes solicitudes pendientes.</p>';
+  updateReqBadge(pending.length);
+  await renderNotifList();
+}
+async function confirmAppt(id){
+  await api('/appointments/' + id + '/confirm', { method:'POST' });
+  toast('Cita confirmada — se notificó por WhatsApp/email a ambos');
+  await Promise.all([renderSolicitudes(), loadDashboard(), loadPatients()]);
+}
+async function rejectAppt(id){
+  await api('/appointments/' + id + '/reject', { method:'POST' });
+  toast('Solicitud rechazada');
+  await renderSolicitudes();
+}
+async function renderNotifList(){
+  const logs = await api('/appointments/notifications/recent');
+  document.getElementById('notif-list').innerHTML = logs.map(n => (
+    '<div class="notif-row">' +
+      '<span>' + fmtDate(n.createdAt) + '</span>' +
+      '<span>' + n.recipient + '</span>' +
+      '<span class="notif-channel">' + n.channel + '</span>' +
+      '<span>' + n.type + ' — <b style="color:' + (n.status==='SENT'?'var(--accent)':n.status==='FAILED'?'var(--danger)':'var(--accent-2)') + '">' + n.status + '</b>' + (n.appointment?.patient?.name ? ' · ' + n.appointment.patient.name : '') + '</span>' +
+    '</div>'
+  )).join('') || '<p class="empty-state">Todavía no se ha enviado ninguna notificación.</p>';
+}
+
+/* ============ FICHA / EXPEDIENTE CLÍNICO ============ */
+let currentPatientId = null, currentPatientName = '';
+
+async function openFicha(patientId, patientName){
+  currentPatientId = patientId; currentPatientName = patientName;
+  document.getElementById('ficha-avatar').textContent = initials(patientName);
+  document.getElementById('ficha-avatar').style.background = '#2F6B5E';
+  document.getElementById('ficha-name').textContent = patientName;
+  document.getElementById('ficha-meta').textContent = 'Cargando expediente…';
+  document.getElementById('note-form').classList.remove('open');
+  document.getElementById('task-form').classList.remove('open');
+  document.getElementById('test-form').classList.remove('open');
+  document.querySelectorAll('.tab-btn').forEach((b,i)=> b.classList.toggle('active', i===0));
+  document.querySelectorAll('.tab-pane').forEach((b,i)=> b.classList.toggle('active', i===0));
+  goTo('ficha');
+
+  try {
+    const record = await api('/clinical/patients/' + patientId + '/record');
+    document.getElementById('ficha-meta').textContent = 'Expediente creado el ' + fmtDate(record.createdAt);
+  } catch(e) {
+    document.getElementById('ficha-meta').textContent = e.status===403 ? 'Sin vínculo activo con este paciente.' : 'Error cargando el expediente.';
+    return;
+  }
+  await Promise.all([renderNotes(), renderDocs(), renderCitasDePaciente(patientId), renderTasks(), renderTests()]);
+  renderProgreso();
+}
+
+async function renderNotes(){
+  const notes = await api('/clinical/patients/' + currentPatientId + '/notes');
+  document.getElementById('notes-list').innerHTML = notes.map(n => (
+    '<div class="note-card">' +
+      '<div class="date">' + fmtDate(n.sessionDate) + (n.correctsNoteId ? ' · corrección' : '') + '</div>' +
+      '<div class="motivo">' + escapeHtml(n.motivo) + '</div>' +
+      '<button class="toggle" onclick="this.nextElementSibling.classList.toggle(\'open\')">Ver nota completa</button>' +
+      '<div class="note-detail">' +
+        '<p><b>Observaciones:</b> ' + escapeHtml(n.observaciones||'—') + '</p>' +
+        '<p><b>Intervención:</b> ' + escapeHtml(n.intervencion||'—') + '</p>' +
+        '<p><b>Evolución:</b> ' + escapeHtml(n.evolucion||'—') + '</p>' +
+        '<p><b>Próximos pasos:</b> ' + escapeHtml(n.proximosPasos||'—') + '</p>' +
+      '</div>' +
+    '</div>'
+  )).join('') || '<p class="empty-state">Todavía no hay notas clínicas para este paciente.</p>';
+}
+function escapeHtml(s){ return String(s).replace(/</g,'&lt;'); }
+
+function toggleNoteForm(){
+  document.getElementById('note-form').classList.toggle('open');
+  document.getElementById('saved-msg').classList.remove('show');
+  if (!document.getElementById('nf-date').value) {
+    document.getElementById('nf-date').value = new Date().toISOString().slice(0,16);
+  }
+}
+async function saveNote(){
+  const sessionDate = document.getElementById('nf-date').value;
+  if (!sessionDate) { toast('Falta la fecha de la sesión'); return; }
+  await api('/clinical/patients/' + currentPatientId + '/notes', {
+    method: 'POST',
+    body: JSON.stringify({
+      sessionDate: new Date(sessionDate).toISOString(),
+      motivo: document.getElementById('nf-motivo').value || 'Sin motivo especificado',
+      observaciones: document.getElementById('nf-obs').value,
+      intervencion: document.getElementById('nf-interv').value,
+      evolucion: document.getElementById('nf-evol').value,
+      proximosPasos: document.getElementById('nf-next').value,
+    }),
+  });
+  document.getElementById('saved-msg').classList.add('show');
+  ['nf-motivo','nf-obs','nf-interv','nf-evol','nf-next'].forEach(id => document.getElementById(id).value = '');
+  await renderNotes();
+  setTimeout(()=> document.getElementById('note-form').classList.remove('open'), 900);
+}
+
+async function renderDocs(){
+  const docs = await api('/clinical/patients/' + currentPatientId + '/documents');
+  document.getElementById('docs-list').innerHTML = docs.map(d => (
+    '<div class="doc-row"><div><div>' + escapeHtml(d.filename) + '</div><div class="meta">' + fmtDate(d.createdAt) + ' · ' + Math.round(d.sizeBytes/1024) + ' KB</div></div>' +
+    '<button class="btn ghost sm" onclick="downloadDocument(\''+d.id+'\')">Ver / descargar</button></div>'
+  )).join('') || '<p class="empty-state">Todavía no hay documentos subidos para este paciente.</p>';
+}
+
+async function downloadDocument(docId){
+  try {
+    const { url } = await api('/clinical/patients/' + currentPatientId + '/documents/' + docId + '/url');
+    window.open(url, '_blank');
+  } catch(e) { toast('Error al abrir el documento: ' + e.message); }
+}
+
+async function uploadDocument(){
+  const fileInput = document.getElementById('doc-file');
+  const file = fileInput.files[0];
+  if (!file) { toast('Elige un archivo primero'); return; }
+  const allowed = {'application/pdf':1,'image/png':1,'image/jpeg':1};
+  if (!allowed[file.type]) { toast('Solo PDF, PNG o JPG'); return; }
+
+  try {
+    const req = await api('/clinical/patients/' + currentPatientId + '/documents', {
+      method: 'POST',
+      body: JSON.stringify({ filename: file.name, mimeType: file.type, sizeBytes: file.size }),
+    });
+    await fetch(req.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+    await api('/clinical/patients/' + currentPatientId + '/documents/' + req.documentId + '/confirm', { method: 'POST' });
+    toast('Documento subido y cifrado en el bucket privado');
+    fileInput.value = '';
+  } catch(e) {
+    toast('Error al subir: ' + e.message);
+  }
+}
+
+async function renderCitasDePaciente(patientId){
+  const all = await api('/appointments');
+  const mine = all.filter(a => a.patient?.id === patientId);
+  document.getElementById('citas-list').innerHTML = mine.map(a => (
+    '<div class="row-line"><span>' + fmtDateTime(a.startsAt) + ' · ' + a.modality + '</span><span class="pill ' + a.status.toLowerCase() + '">' + a.status + '</span></div>'
+  )).join('') || '<p class="empty-state">Sin citas registradas.</p>';
+}
+
+/* ============ TAREAS ============ */
+function toggleTaskForm(){ document.getElementById('task-form').classList.toggle('open'); }
+async function renderTasks(){
+  const tasks = await api('/clinical/patients/' + currentPatientId + '/tasks');
+  document.getElementById('tasks-list').innerHTML = tasks.map(t => (
+    '<div class="task-row"><div><div class="t-title' + (t.status==='COMPLETED'?' done':'') + '">' + escapeHtml(t.title) + '</div>' +
+      (t.description ? '<div class="t-desc">' + escapeHtml(t.description) + '</div>' : '') +
+      (t.dueDate ? '<div class="t-due">Vence: ' + fmtDate(t.dueDate) + '</div>' : '') +
+    '</div><div class="t-actions">' +
+      (t.status==='PENDING'
+        ? '<button class="btn sm" onclick="setTaskStatus(\''+t.id+'\',\'COMPLETED\')">✓ Hecha</button><button class="btn ghost sm" onclick="setTaskStatus(\''+t.id+'\',\'CANCELLED\')">Cancelar</button>'
+        : '<span class="pill ' + (t.status==='COMPLETED'?'confirmed':'completed') + '">' + (t.status==='COMPLETED'?'Completada':'Cancelada') + '</span>') +
+    '</div></div>'
+  )).join('') || '<p class="empty-state">Sin tareas asignadas todavía.</p>';
+}
+async function saveTask(){
+  const title = document.getElementById('tf-title').value.trim();
+  if (!title) { toast('Falta el título de la tarea'); return; }
+  const due = document.getElementById('tf-due').value;
+  await api('/clinical/patients/' + currentPatientId + '/tasks', {
+    method: 'POST',
+    body: JSON.stringify({
+      title,
+      description: document.getElementById('tf-desc').value || undefined,
+      dueDate: due ? new Date(due + 'T12:00:00').toISOString() : undefined,
+    }),
+  });
+  ['tf-title','tf-desc','tf-due'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('task-form').classList.remove('open');
+  toast('Tarea asignada');
+  await renderTasks();
+}
+async function setTaskStatus(id, status){
+  await api('/clinical/patients/' + currentPatientId + '/tasks/' + id, { method:'PATCH', body: JSON.stringify({ status }) });
+  await renderTasks();
+}
+
+/* ============ REACTIVOS ============ */
+function toggleTestForm(){
+  document.getElementById('test-form').classList.toggle('open');
+  if (!document.getElementById('tst-date').value) document.getElementById('tst-date').value = new Date().toISOString().slice(0,16);
+}
+let testSearchTimer = null, selectedCatalogId = null;
+function searchTests(q){
+  clearTimeout(testSearchTimer);
+  selectedCatalogId = null;
+  if (!q || q.length < 2) { document.getElementById('tst-suggest').classList.remove('show'); return; }
+  testSearchTimer = setTimeout(async () => {
+    const items = await api('/clinical/tests-catalog?q=' + encodeURIComponent(q));
+    const box = document.getElementById('tst-suggest');
+    box.innerHTML = items.map(i => (
+      '<div class="opt" onclick="pickTest(\''+i.id+'\', \''+escapeHtml(i.name).replace(/'/g,"")+'\')">' + escapeHtml(i.name) + (i.category ? ' <span class="cat">· ' + escapeHtml(i.category) + '</span>' : '') + '</div>'
+    )).join('') || '<div class="opt" style="color:var(--ink-faint);">Sin resultados — puedes escribirlo a mano abajo</div>';
+    box.classList.add('show');
+  }, 250);
+}
+function pickTest(id, name){
+  selectedCatalogId = id;
+  document.getElementById('tst-name').value = name;
+  document.getElementById('tst-suggest').classList.remove('show');
+}
+async function renderTests(){
+  const items = await api('/clinical/patients/' + currentPatientId + '/tests');
+  document.getElementById('tests-list').innerHTML = items.map(t => (
+    '<div class="test-row"><div class="tt">' + escapeHtml(t.testName) + '</div>' +
+    '<div class="td">' + fmtDate(t.administeredAt) + (t.notas ? ' · ' + escapeHtml(t.notas) : '') + '</div></div>'
+  )).join('') || '<p class="empty-state">No se ha registrado ningún reactivo para este paciente.</p>';
+}
+async function saveTest(){
+  const testName = document.getElementById('tst-name').value.trim();
+  const date = document.getElementById('tst-date').value;
+  if (!testName || !date) { toast('Falta el nombre del reactivo o la fecha'); return; }
+  // Si lo escribieron a mano (no vino del catálogo), lo guardamos para la próxima búsqueda.
+  if (!selectedCatalogId) {
+    await api('/clinical/tests-catalog', { method:'POST', body: JSON.stringify({ name: testName }) }).catch(()=>{});
+  }
+  await api('/clinical/patients/' + currentPatientId + '/tests', {
+    method: 'POST',
+    body: JSON.stringify({
+      testName, testCatalogId: selectedCatalogId || undefined,
+      administeredAt: new Date(date).toISOString(),
+      notas: document.getElementById('tst-notas').value,
+    }),
+  });
+  ['tst-search','tst-name','tst-notas'].forEach(id => document.getElementById(id).value = '');
+  selectedCatalogId = null;
+  document.getElementById('test-form').classList.remove('open');
+  toast('Reactivo registrado');
+  await renderTests();
+}
+
+/* ============ PROGRESO + EXPORTAR PDF ============ */
+async function renderProgreso(){
+  const all = await api('/appointments');
+  const mine = all.filter(a => a.patient?.id === currentPatientId);
+  const completed = mine.filter(a => a.status==='COMPLETED').length;
+  const noShow = mine.filter(a => a.status==='NO_SHOW').length;
+  const tasks = await api('/clinical/patients/' + currentPatientId + '/tasks');
+  const tDone = tasks.filter(t=>t.status==='COMPLETED').length;
+  const tPending = tasks.filter(t=>t.status==='PENDING').length;
+  document.getElementById('progress-stats').innerHTML =
+    '<div class="stat"><div class="v">' + mine.length + '</div><div class="l">Citas totales</div></div>' +
+    '<div class="stat"><div class="v">' + completed + '</div><div class="l">Sesiones completadas</div></div>' +
+    '<div class="stat"><div class="v">' + noShow + '</div><div class="l">Inasistencias</div></div>' +
+    '<div class="stat"><div class="v">' + tDone + '/' + (tDone+tPending) + '</div><div class="l">Tareas completadas</div></div>';
+}
+
+async function exportHistoriaPdf(){
+  if (!window.jspdf) { toast('No se pudo cargar el generador de PDF'); return; }
+  toast('Generando PDF…');
+  const [notes, tests] = await Promise.all([
+    api('/clinical/patients/' + currentPatientId + '/notes'),
+    api('/clinical/patients/' + currentPatientId + '/tests'),
+  ]);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let y = 18;
+  const pageH = doc.internal.pageSize.getHeight();
+  function line(text, size=10, gap=6, bold=false){
+    doc.setFontSize(size); doc.setFont(undefined, bold?'bold':'normal');
+    const wrapped = doc.splitTextToSize(text, 180);
+    wrapped.forEach(w => {
+      if (y > pageH - 16) { doc.addPage(); y = 18; }
+      doc.text(w, 14, y); y += gap;
+    });
+  }
+  line('PsicoHoy — Historia clínica', 15, 9, true);
+  line(currentPatientName, 12, 8, true);
+  line('Generado el ' + new Date().toLocaleDateString('es-EC'), 9, 10);
+  line('CONFIDENCIAL — uso exclusivo del profesional tratante', 8, 10);
+
+  line('Notas de sesión', 13, 8, true);
+  notes.forEach(n => {
+    line(fmtDate(n.sessionDate) + ' — ' + (n.motivo||''), 10, 6, true);
+    line('Observaciones: ' + (n.observaciones||'—'));
+    line('Intervención: ' + (n.intervencion||'—'));
+    line('Evolución: ' + (n.evolucion||'—'));
+    line('Próximos pasos: ' + (n.proximosPasos||'—'), 10, 10);
+  });
+  if (!notes.length) line('Sin notas registradas.', 10, 10);
+
+  line('Reactivos aplicados', 13, 8, true);
+  tests.forEach(t => line(fmtDate(t.administeredAt) + ' — ' + t.testName + (t.notas ? ' · ' + t.notas : ''), 10, 7));
+  if (!tests.length) line('Sin reactivos registrados.', 10, 7);
+
+  doc.save('historia-clinica-' + currentPatientName.replace(/\s+/g,'-').toLowerCase() + '.pdf');
+}
+
+/* ============ HORARIOS ============ */
+const DAY_NAMES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+function minToHHMM(m){ return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0'); }
+function hhmmToMin(s){ const [h,m] = s.split(':').map(Number); return h*60+m; }
+
+async function loadHorarios(){
+  const items = await api('/availability');
+  items.sort((a,b)=> a.weekday-b.weekday || a.startMinute-b.startMinute);
+  document.getElementById('sched-list').innerHTML = items.map(a => (
+    '<div class="sched-row"><span>' + DAY_NAMES[a.weekday] + ' · ' + minToHHMM(a.startMinute) + ' – ' + minToHHMM(a.endMinute) + '</span>' +
+    '<button class="del" onclick="deleteAvailability(\''+a.id+'\')">Eliminar</button></div>'
+  )).join('') || '<p class="empty-state">Todavía no tienes bloques de horario — agrega uno abajo.</p>';
+}
+async function addAvailability(){
+  const weekday = Number(document.getElementById('sch-day').value);
+  const startMinute = hhmmToMin(document.getElementById('sch-start').value);
+  const endMinute = hhmmToMin(document.getElementById('sch-end').value);
+  if (endMinute <= startMinute) { toast('La hora de fin debe ser después del inicio'); return; }
+  try {
+    await api('/availability', { method:'POST', body: JSON.stringify({ weekday, startMinute, endMinute }) });
+    toast('Bloque agregado');
+    await loadHorarios();
+  } catch(e) { toast('Error: ' + e.message); }
+}
+async function deleteAvailability(id){
+  await api('/availability/' + id, { method:'DELETE' });
+  await loadHorarios();
+}
+
+/* ============ CONFIGURACIÓN ============ */
+async function loadConfiguracion(){
+  const psy = await api('/me');
+  document.getElementById('cfg-name').value = psy.name || '';
+  document.getElementById('cfg-phone').value = psy.phone || '';
+  document.getElementById('cfg-timezone').value = psy.timezone || '';
+  document.getElementById('cfg-slot').value = psy.slotMinutes || 50;
+  document.getElementById('cfg-notif-wa').checked = !!psy.notifyWhatsapp;
+  document.getElementById('cfg-notif-email').checked = !!psy.notifyEmail;
+  document.getElementById('cfg-rem24').checked = !!psy.reminder24h;
+  document.getElementById('cfg-rem1').checked = !!psy.reminder1h;
+  await loadUsageInto('cfg-usage');
+}
+async function saveProfile(){
+  try {
+    const updated = await api('/me', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name: document.getElementById('cfg-name').value,
+        phone: document.getElementById('cfg-phone').value,
+        timezone: document.getElementById('cfg-timezone').value,
+        slotMinutes: Number(document.getElementById('cfg-slot').value),
+        notifyWhatsapp: document.getElementById('cfg-notif-wa').checked,
+        notifyEmail: document.getElementById('cfg-notif-email').checked,
+        reminder24h: document.getElementById('cfg-rem24').checked,
+        reminder1h: document.getElementById('cfg-rem1').checked,
+      }),
+    });
+    ME = updated;
+    document.getElementById('who-name').textContent = ME.name;
+    document.getElementById('cfg-saved-msg').classList.add('show');
+    setTimeout(()=> document.getElementById('cfg-saved-msg').classList.remove('show'), 2200);
+  } catch(e) { toast('Error al guardar: ' + e.message); }
+}
+
+/* ============ SUSCRIPCIÓN (uso compartido con Configuración) ============ */
+async function loadUsageInto(elId){
+  const u = await api('/me/usage');
+  document.getElementById(elId).innerHTML =
+    '<div class="stat"><div class="v">' + u.activePatients + '</div><div class="l">Pacientes activos</div></div>' +
+    '<div class="stat"><div class="v">' + u.totalAppointments + '</div><div class="l">Citas totales</div></div>' +
+    '<div class="stat"><div class="v">' + u.monthAppointments + '</div><div class="l">Citas este mes</div></div>' +
+    '<div class="stat"><div class="v">' + u.pendingTasks + '</div><div class="l">Tareas pendientes</div></div>' +
+    '<div class="stat"><div class="v">' + u.completedTasks + '</div><div class="l">Tareas completadas</div></div>';
+}
+async function loadSuscripcion(){ await loadUsageInto('sub-usage'); }
+
+/* ============ NAVEGACIÓN ============ */
+function goTo(view){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  document.querySelectorAll('.sb-item[data-view]').forEach(b=>b.classList.remove('active'));
+  const navBtn = document.querySelector('.sb-item[data-view="'+view+'"]');
+  if (navBtn) navBtn.classList.add('active');
+  const labels = {dashboard:'Dashboard', pacientes:'Pacientes', solicitudes:'Solicitudes', horarios:'Horarios', configuracion:'Configuración', suscripcion:'Suscripción', ficha:'Pacientes · ' + currentPatientName};
+  document.getElementById('crumb').innerHTML = 'Panel <b>· ' + (labels[view]||'') + '</b>';
+  if (view==='solicitudes') renderSolicitudes();
+  if (view==='pacientes') loadPatients();
+  if (view==='dashboard') loadDashboard();
+  if (view==='horarios') loadHorarios();
+  if (view==='configuracion') loadConfiguracion();
+  if (view==='suscripcion') loadSuscripcion();
+}
+document.querySelectorAll('.sb-item[data-view]').forEach(btn => btn.addEventListener('click', ()=> goTo(btn.dataset.view)));
+document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', ()=>{
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+}));
+
+/* ============ LINK PÚBLICO DE RESERVA (para probar el flujo del paciente) ============ */
+var booking = { step:1, type:null, modality:null, date:null, time:null, name:'', email:'', phone:'' };
+var publicSlots = {};
+
+function nextWeekdays(n){
+  const out = []; const d = new Date();
+  while (out.length < n) {
+    d.setDate(d.getDate()+1);
+    if (d.getDay() !== 0 && d.getDay() !== 6) out.push(new Date(d));
+  }
+  return out;
+}
+function iso(d){ return d.toISOString().slice(0,10); }
+
+async function openPublicScreen(){
+  booking = { step:1, type:null, modality:null, date:null, time:null, name:'', email:'', phone:'' };
+  document.getElementById('public-screen').classList.add('active');
+  document.getElementById('public-sub').textContent = API_BASE + '/public/' + ME.slug + ' — este es el link que compartes con tus pacientes';
+  renderPublic();
+}
+function closePublicScreen(){ document.getElementById('public-screen').classList.remove('active'); }
+
+async function slotsFor(dateValue){
+  if (publicSlots[dateValue]) return publicSlots[dateValue];
+  const res = await fetch(API_BASE + '/public/' + ME.slug + '/slots?date=' + dateValue);
+  const data = await res.json();
+  publicSlots[dateValue] = data.slots || [];
+  return publicSlots[dateValue];
+}
+
+async function renderPublic(){
+  let dots = ''; for (let i=1;i<=5;i++) dots += '<div class="step-dot'+(i<=booking.step?' done':'')+'"></div>';
+  let html = '<div class="step-track">'+dots+'</div>';
+
+  if (booking.step===1){
+    html += '<div class="step-title">¿Qué tipo de consulta buscas?</div><div class="option-grid">' +
+      ['Individual','Pareja','Infantil'].map(t=>'<button class="option-card'+(booking.type===t?' sel':'')+'" onclick="setBooking(\'type\',\''+t+'\')">'+t+'</button>').join('') +
+      '</div>' + stepNav(1);
+  } else if (booking.step===2){
+    html += '<div class="step-title">¿Cómo prefieres tu sesión?</div><div class="option-grid">' +
+      ['Online','Presencial'].map(m=>'<button class="option-card'+(booking.modality===m?' sel':'')+'" onclick="setBooking(\'modality\',\''+m+'\')">'+m+'</button>').join('') +
+      '</div>' + stepNav(2);
+  } else if (booking.step===3){
+    const dates = nextWeekdays(5);
+    html += '<div class="step-title">Elige una fecha</div><div class="date-row">' +
+      dates.map(d=>{ const v=iso(d); const lbl=d.toLocaleDateString('es-EC',{weekday:'short',day:'numeric'}); return '<button class="date-chip'+(booking.date===v?' sel':'')+'" onclick="setBooking(\'date\',\''+v+'\')">'+lbl+'</button>'; }).join('') +
+      '</div>' + stepNav(3);
+  } else if (booking.step===4){
+    document.getElementById('public-content').innerHTML = '<div class="step-title">Elige una hora</div><p class="spinner">Buscando horarios libres…</p>';
+    const slots = await slotsFor(booking.date);
+    html += '<div class="step-title">Elige una hora</div>';
+    html += slots.length
+      ? '<div class="slot-grid">' + slots.map(h=>'<button class="slot-btn'+(booking.time===h?' sel':'')+'" onclick="setBooking(\'time\',\''+h+'\')">'+h+'</button>').join('') + '</div>'
+      : '<p class="empty-state">No hay horarios libres ese día. Vuelve y elige otra fecha.</p>';
+    html += stepNav(4);
+  } else if (booking.step===5){
+    html += '<div class="step-title">Tus datos de contacto</div>' +
+      '<div class="field"><label>Nombre completo</label><input type="text" oninput="booking.name=this.value"></div>' +
+      '<div class="field"><label>Email</label><input type="email" oninput="booking.email=this.value"></div>' +
+      '<div class="field"><label>WhatsApp (formato +593...)</label><input type="tel" placeholder="+593999999999" oninput="booking.phone=this.value"></div>' +
+      '<div class="step-nav"><button class="btn ghost" onclick="prevStep()">Atrás</button><button class="btn" onclick="submitBooking()">Enviar solicitud</button></div>';
+  } else if (booking.step===6){
+    html = '<div class="confirm-screen"><div class="confirm-icon">🕘</div><h2>Tu solicitud fue enviada</h2>' +
+      '<p style="color:var(--ink-faint); margin-top:10px;">' + ME.name + ' · ' + booking.date + ' · ' + booking.time + ' · ' + booking.modality + '</p>' +
+      '<p style="color:var(--ink-faint); font-size:0.88rem; margin-top:18px; max-width:340px; margin-left:auto; margin-right:auto;">Esto creó una solicitud REAL en tu base de datos — ve a Solicitudes para confirmarla y ver salir la notificación real.</p>' +
+      '<button class="btn" style="margin-top:26px;" onclick="closePublicScreen(); goTo(\'solicitudes\');">Ir a Solicitudes</button></div>';
+  } else if (booking.step===7){
+    html = '<div class="confirm-screen"><div class="confirm-icon">⚠️</div><h2>Ese horario ya no está disponible</h2>' +
+      '<p style="color:var(--ink-faint); margin-top:10px;">Alguien más lo tomó justo antes que tú — así se prueba que la protección anti doble reserva funciona.</p>' +
+      '<button class="btn" style="margin-top:26px;" onclick="booking.step=3; booking.time=null; delete publicSlots[booking.date]; renderPublic();">Elegir otro horario</button></div>';
+  }
+  document.getElementById('public-content').innerHTML = html;
+}
+function stepNav(step){
+  const canContinue = (step===1&&booking.type)||(step===2&&booking.modality)||(step===3&&booking.date)||(step===4&&booking.time);
+  return '<div class="step-nav">' + (step>1?'<button class="btn ghost" onclick="prevStep()">Atrás</button>':'<span></span>') +
+    '<button class="btn" '+(canContinue?'':'disabled style="opacity:0.4;cursor:not-allowed;"')+' onclick="nextStep()">Continuar</button></div>';
+}
+function setBooking(field, value){ booking[field]=value; if(field==='date') booking.time=null; renderPublic(); }
+function nextStep(){ booking.step++; renderPublic(); }
+function prevStep(){ booking.step--; renderPublic(); }
+
+async function submitBooking(){
+  try {
+    const res = await fetch(API_BASE + '/public/' + ME.slug + '/bookings', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        date: booking.date, time: booking.time, type: booking.type, modality: booking.modality,
+        name: booking.name || 'Paciente de prueba', email: booking.email || ('prueba+'+Date.now()+'@ejemplo.com'),
+        phone: booking.phone || undefined, whatsappOptIn: !!booking.phone,
+      }),
+    });
+    if (res.status === 409) { booking.step = 7; renderPublic(); return; }
+    if (!res.ok) { const b = await res.json(); toast('Error: ' + (b.error||res.status)); return; }
+    booking.step = 6; renderPublic();
+  } catch(e) { toast('Error de red: ' + e.message); }
+}
+
+/* ============ ARRANQUE ============ */
+loadSaved();
+if (API_BASE && TOKEN) {
+  api('/me').then(me => { ME = me; boot(); }).catch(() => { /* token vencido/ inválido: pide de nuevo */ });
+} 
+</script>
+</body>
+</html>
