@@ -151,6 +151,7 @@ model PatientPsychologistRelationship {
   psychologist   Psychologist @relation(fields: [psychologistId], references: [id])
   patient        Patient      @relation(fields: [patientId], references: [id])
   record         ClinicalRecord?
+  tasks          Task[]
 
   @@unique([psychologistId, patientId])
   @@index([patientId, status])
@@ -171,6 +172,7 @@ model ClinicalRecord {
   relationship   PatientPsychologistRelationship @relation(fields: [relationshipId], references: [id])
   notes          ClinicalNote[]
   documents      ClinicalDocument[]
+  testAdministrations TestAdministration[]
 }
 
 // INSERT-ONLY desde la API: no hay endpoint de edición/borrado de contenido.
@@ -226,6 +228,64 @@ model ClinicalAuditLog {
 
   @@index([patientId, createdAt])
   @@index([psychologistId, createdAt])
+}
+
+enum TaskStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+// Tarea asignada por la psicóloga a un paciente (ej. "completar registro de pensamientos").
+// No hay portal de paciente todavía: el paciente se entera por WhatsApp/email, y la psicóloga
+// marca manualmente cuando se completa (se lo reporta el paciente en la siguiente sesión, por ej.)
+model Task {
+  id             String     @id @default(uuid())
+  relationshipId String
+  title          String
+  description    String?
+  dueDate        DateTime?
+  status         TaskStatus @default(PENDING)
+  createdAt      DateTime   @default(now())
+  completedAt    DateTime?
+
+  relationship   PatientPsychologistRelationship @relation(fields: [relationshipId], references: [id])
+
+  @@index([relationshipId, status])
+}
+
+// Catálogo de reactivos/pruebas psicológicas. psychologistId null = catálogo global (precargado).
+// psychologistId con valor = reactivo que esa psicóloga agregó a mano y que solo ella ve en su buscador.
+model PsychTestCatalog {
+  id             String   @id @default(uuid())
+  psychologistId String?
+  name           String
+  category       String?
+  createdAt      DateTime @default(now())
+
+  administrations TestAdministration[]
+
+  @@unique([psychologistId, name])
+}
+
+// Registro de que se aplicó un reactivo a un paciente. "notas" (resultado/interpretación) va
+// cifrado igual que las notas de sesión; testName queda en claro (es solo el nombre de la prueba).
+model TestAdministration {
+  id               String   @id @default(uuid())
+  clinicalRecordId String
+  testCatalogId    String?
+  testName         String
+  administeredAt   DateTime
+  keyVersion       Int      @default(1)
+  iv               String
+  authTag          String
+  ciphertext       String   // JSON cifrado: {notas}
+  createdAt        DateTime @default(now())
+
+  record           ClinicalRecord     @relation(fields: [clinicalRecordId], references: [id])
+  testCatalog      PsychTestCatalog?  @relation(fields: [testCatalogId], references: [id])
+
+  @@index([clinicalRecordId, administeredAt])
 }
 
 // Historial + garantía de idempotencia: un mismo aviso no se envía dos veces

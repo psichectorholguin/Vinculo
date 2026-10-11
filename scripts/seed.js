@@ -38,6 +38,38 @@ for (let weekday = 1; weekday <= 5; weekday++) {
   }
 }
 
+// Catálogo global de reactivos comunes en consulta en Ecuador/LatAm (psychologistId null
+// = todas las cuentas lo ven en el buscador). Es seguro correr esto varias veces (upsert).
+const GLOBAL_TESTS = [
+  ['Inventario de Depresión de Beck (BDI-II)', 'Depresión'],
+  ['Inventario de Ansiedad de Beck (BAI)', 'Ansiedad'],
+  ['Escala de Ansiedad y Depresión de Goldberg', 'Ansiedad/Depresión'],
+  ['Cuestionario de Salud del Paciente (PHQ-9)', 'Depresión'],
+  ['Escala de Ansiedad Generalizada (GAD-7)', 'Ansiedad'],
+  ['WISC-V (Escala de Inteligencia de Wechsler para Niños)', 'Cognitivo'],
+  ['WAIS-IV (Escala de Inteligencia de Wechsler para Adultos)', 'Cognitivo'],
+  ['Test de Matrices Progresivas de Raven', 'Cognitivo'],
+  ['MMPI-2 (Inventario Multifásico de Personalidad de Minnesota)', 'Personalidad'],
+  ['16PF (Cuestionario de 16 Factores de Personalidad)', 'Personalidad'],
+  ['Test Guestáltico Visomotor de Bender', 'Neuropsicológico'],
+  ['Test de la Figura Humana (Machover)', 'Proyectivo'],
+  ['Test del Árbol (Koch)', 'Proyectivo'],
+  ['Test de la Familia', 'Proyectivo'],
+  ['Cuestionario de Autoestima de Rosenberg', 'Autoestima'],
+  ['Escala de Afrontamiento al Estrés (COPE)', 'Estrés'],
+  ['Inventario de Burnout de Maslach (MBI)', 'Laboral'],
+  ['Test de Estilos de Apego (ECR)', 'Vínculos'],
+  ['Escala de Satisfacción con la Vida (SWLS)', 'Bienestar'],
+  ['Cuestionario de Dificultades y Fortalezas (SDQ)', 'Infantil'],
+];
+for (const [name, category] of GLOBAL_TESTS) {
+  await prisma.psychTestCatalog.upsert({
+    where: { psychologistId_name: { psychologistId: null, name } },
+    update: {},
+    create: { psychologistId: null, name, category },
+  });
+}
+
 const admin = await prisma.admin.upsert({
   where: { email: 'admin@psicohoy.com' },
   update: {},
@@ -47,7 +79,7 @@ const admin = await prisma.admin.upsert({
 const psychologistToken = jwt.sign({ role: 'PSYCHOLOGIST', psychologistId: psy.id }, process.env.JWT_SECRET, { expiresIn: '180d' });
 const adminToken = jwt.sign({ role: 'ADMIN', adminId: admin.id }, process.env.JWT_SECRET, { expiresIn: '180d' });
 
-console.log('\n✅ Listo. Datos creados:\n');
+console.log('\n✅ Listo. Datos creados (incluye catálogo de', GLOBAL_TESTS.length, 'reactivos comunes):\n');
 console.log('Psicóloga:', psy.name, '· slug:', psy.slug, '· id:', psy.id);
 console.log('Link público de reserva (una vez desplegado): https://tu-api.onrender.com/public/' + psy.slug);
 console.log('\nToken de la psicóloga (pégalo en el panel, dura 180 días):\n');

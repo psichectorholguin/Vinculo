@@ -7,6 +7,9 @@ import { clinicalRouter } from './routes/clinical.routes.js';
 import { relationshipsRouter } from './routes/relationships.routes.js';
 import { adminRouter } from './routes/admin.routes.js';
 import { meRouter } from './routes/me.routes.js';
+import { tasksRouter } from './routes/tasks.routes.js';
+import { testsRouter } from './routes/tests.routes.js';
+import { availabilityRouter } from './routes/availability.routes.js';
 
 // Construcción de la app separada de index.js (que hace el listen()) para poder
 // importar `app` directo en los tests sin levantar un puerto real.
@@ -19,6 +22,9 @@ app.use('/public', publicRouter);              // link de reserva del paciente (
 app.use('/appointments', appointmentsRouter);  // panel del psicólogo (JWT)
 app.use('/relationships', relationshipsRouter);// vínculo paciente-psicóloga (JWT)
 app.use('/clinical', clinicalRouter);          // expediente, notas, documentos (JWT + vínculo ACTIVE)
+app.use('/clinical', tasksRouter);             // tareas asignadas al paciente (JWT + vínculo ACTIVE)
+app.use('/clinical', testsRouter);             // catálogo y aplicación de reactivos (JWT + vínculo ACTIVE)
 app.use('/admin', adminRouter);                // backoffice — break-glass auditado (JWT admin)
 app.use('/me', meRouter);                      // perfil básico de la psicóloga autenticada
+app.use('/availability', availabilityRouter);  // horario semanal recurrente (JWT)
 app.use('/internal', internalRouter);          // disparado por el cron externo (secreto compartido)

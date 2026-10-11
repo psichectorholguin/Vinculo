@@ -95,6 +95,17 @@ clinicalRouter.post('/patients/:patientId/notes', async (req, res) => {
   res.status(201).json(decryptNote(note));
 });
 
+// GET /clinical/patients/:patientId/documents  -> listado (solo metadatos, nunca el archivo en sí)
+clinicalRouter.get('/patients/:patientId/documents', async (req, res) => {
+  const record = await ensureRecord(req.relationship);
+  const docs = await prisma.clinicalDocument.findMany({
+    where: { clinicalRecordId: record.id, status: 'STORED' },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, filename: true, mimeType: true, sizeBytes: true, createdAt: true },
+  });
+  res.json(docs);
+});
+
 // POST /clinical/patients/:patientId/documents  -> pide una URL de subida firmada
 const uploadRequestSchema = z.object({
   filename: z.string().min(1).max(200),
