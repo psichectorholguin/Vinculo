@@ -1,0 +1,247 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")   // la que usa tu app en funcionamiento normal (puerto 6543, "pooled")
+  directUrl = env("DIRECT_URL")     // la que se usa SOLO para crear/cambiar tablas (puerto 5432, "direct")
+}
+
+enum AppointmentStatus {
+  REQUESTED   // el paciente reservó desde el link público
+  CONFIRMED   // el psicólogo validó
+  REJECTED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+  EXPIRED
+}
+
+enum Channel {
+  WHATSAPP
+  EMAIL
+}
+
+enum Recipient {
+  PATIENT
+  PSYCHOLOGIST
+}
+
+enum NotificationType {
+  CONFIRMED
+  REMINDER_24H
+  REMINDER_1H
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model Psychologist {
+  id             String   @id @default(uuid())
+  slug           String   @unique            // psicohoy.com/reservar/:slug
+  name           String
+  email          String   @unique
+  phone          String?                     // E.164, ej. +593999999999
+  timezone       String   @default("America/Guayaquil")
+  slotMinutes    Int      @default(50)
+  notifyWhatsapp Boolean  @default(true)
+  notifyEmail    Boolean  @default(true)
+  reminder24h    Boolean  @default(true)
+  reminder1h     Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  availability   Availability[]
+  appointments   Appointment[]
+  patientLinks   PatientPsychologistRelationship[]
+}
+
+model Patient {
+  id            String   @id @default(uuid())
+  name          String
+  email         String
+  phone         String?
+  whatsappOptIn Boolean  @default(false)   // consentimiento explícito
+  createdAt     DateTime @default(now())
+
+  appointments  Appointment[]
+  psychologistLinks PatientPsychologistRelationship[]
+}
+
+// Horario semanal recurrente. weekday: 0=domingo ... 6=sábado
+model Availability {
+  id             String @id @default(uuid())
+  psychologistId String
+  weekday        Int
+  startMinute    Int    // minutos desde 00:00 en la zona del psicólogo (540 = 09:00)
+  endMinute      Int
+
+  psychologist   Psychologist @relation(fields: [psychologistId], references: [id], onDelete: Cascade)
+
+  @@index([psychologistId, weekday])
+}
+
+model Appointment {
+  id             String            @id @default(uuid())
+  psychologistId String
+  patientId      String
+  startsAt       DateTime          // siempre en UTC
+  endsAt         DateTime
+  type           String            // Individual | Pareja | Infantil
+  modality       String            // Online | Presencial
+  status         AppointmentStatus @default(REQUESTED)
+  createdAt      DateTime          @default(now())
+  confirmedAt    DateTime?
+
+  psychologist   Psychologist @relation(fields: [psychologistId], references: [id])
+  patient        Patient      @relation(fields: [patientId], references: [id])
+  notifications  NotificationLog[]
+
+  @@index([psychologistId, startsAt])
+  @@index([status, startsAt])
+  // La protección anti doble reserva es un ÍNDICE ÚNICO PARCIAL en SQL:
+  // ver prisma/migrations/20260927_init_slot_lock/migration.sql
+}
+
+// ============ HISTORIA CLÍNICA ============
+// Todo lo de aquí abajo vive conceptualmente separado del marketplace:
+// ningún campo de este bloque puede aparecer en una respuesta pública.
+
+enum RelationshipStatus {
+  ACTIVE
+  ENDED
+  SUSPENDED
+}
+
+enum NoteVisibility {
+  PRIVATE   // solo la psicóloga (default)
+  SHARED    // visible para el paciente cuando exista portal de paciente
+}
+
+enum DocumentStatus {
+  PENDING    // se emitió URL de subida, aún no se confirma que el archivo llegó
+  STORED
+  DELETED
+}
+
+enum Role {
+  PSYCHOLOGIST
+  ADMIN
+}
+
+model Admin {
+  id    String @id @default(uuid())
+  email String @unique
+  name  String
+}
+
+// El vínculo es la ÚNICA puerta de entrada al expediente. Sin una fila ACTIVE aquí,
+// nadie —ni la propia psicóloga que alguna vez atendió a este paciente— puede leer nada.
+model PatientPsychologistRelationship {
+  id             String             @id @default(uuid())
+  psychologistId String
+  patientId      String
+  status         RelationshipStatus @default(ACTIVE)
+  startedAt      DateTime           @default(now())
+  endedAt        DateTime?
+
+  psychologist   Psychologist @relation(fields: [psychologistId], references: [id])
+  patient        Patient      @relation(fields: [patientId], references: [id])
+  record         ClinicalRecord?
+
+  @@unique([psychologistId, patientId])
+  @@index([patientId, status])
+}
+
+// Un expediente por vínculo. "encryptedSummary" son los campos no-sesión-específicos
+// (motivo de consulta general, contexto) — cifrados igual que las notas.
+model ClinicalRecord {
+  id             String   @id @default(uuid())
+  relationshipId String   @unique
+  keyVersion     Int      @default(1)
+  iv             String
+  authTag        String
+  ciphertext     String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  relationship   PatientPsychologistRelationship @relation(fields: [relationshipId], references: [id])
+  notes          ClinicalNote[]
+  documents      ClinicalDocument[]
+}
+
+// INSERT-ONLY desde la API: no hay endpoint de edición/borrado de contenido.
+// Una corrección se registra como nota nueva que referencia a `correctsNoteId`,
+// para que el historial clínico nunca pierda lo que realmente se escribió y cuándo.
+model ClinicalNote {
+  id             String         @id @default(uuid())
+  clinicalRecordId String
+  authorId       String          // id de la psicóloga que la escribió (para auditoría, no cifrado)
+  visibility     NoteVisibility  @default(PRIVATE)
+  correctsNoteId String?
+  keyVersion     Int             @default(1)
+  iv             String
+  authTag        String
+  ciphertext     String          // JSON cifrado: {motivo, observaciones, intervencion, evolucion, proximosPasos}
+  sessionDate    DateTime
+  createdAt      DateTime        @default(now())
+
+  record         ClinicalRecord @relation(fields: [clinicalRecordId], references: [id])
+
+  @@index([clinicalRecordId, createdAt])
+}
+
+// Solo metadatos aquí. El archivo real vive en un bucket privado (no en la base de datos).
+model ClinicalDocument {
+  id             String         @id @default(uuid())
+  clinicalRecordId String
+  uploadedById   String
+  filename       String
+  mimeType       String
+  sizeBytes      Int
+  storageKey     String         @unique   // ruta dentro del bucket privado
+  status         DocumentStatus @default(PENDING)
+  createdAt      DateTime       @default(now())
+
+  record         ClinicalRecord @relation(fields: [clinicalRecordId], references: [id])
+}
+
+// Nunca contiene contenido clínico — solo metadatos de QUIÉN, QUÉ acción y CUÁNDO.
+// No tiene relations hacia los modelos cifrados a propósito: así un bug en una consulta
+// de auditoría jamás puede filtrar texto clínico por accidente.
+model ClinicalAuditLog {
+  id             String   @id @default(uuid())
+  actorType      Role
+  actorId        String
+  psychologistId String?
+  patientId      String?
+  recordId       String?
+  action         String   // RECORD_VIEWED | NOTE_CREATED | DOCUMENT_VIEWED | DOCUMENT_UPLOADED | ADMIN_BREAK_GLASS_ACCESS | ACCESS_DENIED ...
+  reason         String?  // obligatorio para ADMIN_BREAK_GLASS_ACCESS
+  ip             String?
+  createdAt      DateTime @default(now())
+
+  @@index([patientId, createdAt])
+  @@index([psychologistId, createdAt])
+}
+
+// Historial + garantía de idempotencia: un mismo aviso no se envía dos veces
+model NotificationLog {
+  id                String             @id @default(uuid())
+  appointmentId     String
+  recipient         Recipient
+  channel           Channel
+  type              NotificationType
+  status            NotificationStatus @default(PENDING)
+  providerMessageId String?
+  error             String?
+  createdAt         DateTime           @default(now())
+  sentAt            DateTime?
+
+  appointment       Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@unique([appointmentId, recipient, channel, type])
+}
